@@ -8,6 +8,7 @@ All logging must go to stderr.
 """
 
 import logging
+import os
 import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -95,14 +96,26 @@ from . import tools  # noqa: E402, F401
 def main() -> None:
     """Main entry point for the Exa MCP server.
 
-    Validates settings and starts the MCP server on stdio transport.
+    Supports two transports:
+    - STDIO (default): For Claude Desktop local usage
+    - HTTP/SSE: For Cloud Run or remote hosting
+
+    Set MCP_TRANSPORT=http to enable HTTP mode.
     """
     if not validate_settings():
         logger.error("Settings validation failed. Check EXA_API_KEY environment variable.")
         sys.exit(1)
 
-    logger.info("Starting MCP server on stdio transport...")
-    mcp.run()
+    transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
+
+    if transport == "http":
+        host = os.getenv("MCP_HOST", "0.0.0.0")
+        port = int(os.getenv("MCP_PORT", "8080"))
+        logger.info(f"Starting MCP server on HTTP transport ({host}:{port})...")
+        mcp.run(transport="sse", host=host, port=port)
+    else:
+        logger.info("Starting MCP server on STDIO transport...")
+        mcp.run()
 
 
 if __name__ == "__main__":
