@@ -6,7 +6,7 @@ This module provides tools for creating and managing async research tasks.
 import json
 from typing import Any
 
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 
 from ..constants import CHARACTER_LIMIT, ResponseFormat
 from ..exceptions import format_error_for_llm

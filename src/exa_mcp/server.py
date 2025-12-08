@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from .client import ExaClient
 from .config import get_settings, validate_settings
@@ -87,8 +87,8 @@ mcp = FastMCP(
     lifespan=app_lifespan,
 )
 
-# Import and register tools
-# Tools are registered via decorators when imported
+# Import tools to register them with decorators
+# NOTE: This must happen AFTER mcp is defined
 from . import tools  # noqa: E402, F401
 
 

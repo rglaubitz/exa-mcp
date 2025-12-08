@@ -6,7 +6,7 @@ This module provides the exa_find_similar tool.
 import json
 from typing import Any
 
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 
 from ..constants import CHARACTER_LIMIT, ResponseFormat
 from ..exceptions import format_error_for_llm
