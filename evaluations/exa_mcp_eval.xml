@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Exa MCP Server Evaluation Questions
+
+  These questions test LLM effectiveness with the exa_mcp tools.
+  Each question requires using one or more tools to find the answer.
+
+  Tools available:
+  - exa_search: Web search with filters (category, domain, date, phrases)
+  - exa_code_search: Code-specific search for programming context
+  - exa_find_similar: Find pages similar to a URL
+  - exa_get_contents: Extract full content from URLs
+  - exa_answer: Direct Q&A with citations
+  - exa_research_start/check/list: Async deep research tasks
+-->
+<evaluation>
+  <!-- Q1: Basic search with domain filtering -->
+  <qa_pair>
+    <question>Using Exa search, find the most recent article from techcrunch.com about AI agents. What is the title of the article?</question>
+    <answer>[Run exa_search with include_domains=["techcrunch.com"] and query="AI agents" to verify]</answer>
+    <tools_needed>exa_search</tools_needed>
+    <complexity>basic</complexity>
+  </qa_pair>
+
+  <!-- Q2: Category-filtered search -->
+  <qa_pair>
+    <question>Search for research papers about "transformer architecture optimization" published in 2024. How many results are returned with num_results=10?</question>
+    <answer>[Run exa_search with category="research paper", date filters for 2024]</answer>
+    <tools_needed>exa_search</tools_needed>
+    <complexity>basic</complexity>
+  </qa_pair>
+
+  <!-- Q3: Code search for programming context -->
+  <qa_pair>
+    <question>Use code search to find examples of FastMCP tool registration patterns. What decorator is commonly used?</question>
+    <answer>@mcp.tool</answer>
+    <tools_needed>exa_code_search</tools_needed>
+    <complexity>basic</complexity>
+  </qa_pair>
+
+  <!-- Q4: Find similar pages -->
+  <qa_pair>
+    <question>Find pages similar to https://docs.anthropic.com/en/docs/build-with-claude/tool-use. Are there any results from OpenAI's documentation?</question>
+    <answer>[Run exa_find_similar and check if any result URLs contain "openai.com"]</answer>
+    <tools_needed>exa_find_similar</tools_needed>
+    <complexity>medium</complexity>
+  </qa_pair>
+
+  <!-- Q5: Get contents with summary -->
+  <qa_pair>
+    <question>Extract the content from https://modelcontextprotocol.io/introduction with summary enabled. What is the one-sentence summary of MCP?</question>
+    <answer>[Run exa_get_contents with summary=true]</answer>
+    <tools_needed>exa_get_contents</tools_needed>
+    <complexity>basic</complexity>
+  </qa_pair>
+
+  <!-- Q6: Answer with citations -->
+  <qa_pair>
+    <question>Ask Exa to answer: "What are the main differences between Claude 3.5 Sonnet and Claude 3 Opus?" How many citations are provided?</question>
+    <answer>[Run exa_answer and count citations array length]</answer>
+    <tools_needed>exa_answer</tools_needed>
+    <complexity>basic</complexity>
+  </qa_pair>
+
+  <!-- Q7: Multi-tool workflow - search then get contents -->
+  <qa_pair>
+    <question>Search for "MCP server best practices" on GitHub, then extract the full content of the top result. What programming language is used in most examples?</question>
+    <answer>[Run exa_search with category="github", then exa_get_contents on top URL]</answer>
+    <tools_needed>exa_search, exa_get_contents</tools_needed>
+    <complexity>medium</complexity>
+  </qa_pair>
+
+  <!-- Q8: Date-filtered news search -->
+  <qa_pair>
+    <question>Search for news articles about "OpenAI" from the last 7 days, excluding results from reddit.com. What is the most common topic across the top 5 results?</question>
+    <answer>[Run exa_search with category="news", date filter, exclude_domains=["reddit.com"]]</answer>
+    <tools_needed>exa_search</tools_needed>
+    <complexity>medium</complexity>
+  </qa_pair>
+
+  <!-- Q9: Research task workflow -->
+  <qa_pair>
+    <question>Start a research task on "comparison of vector databases for RAG applications". What task ID is returned?</question>
+    <answer>[Run exa_research_start, extract task_id from response]</answer>
+    <tools_needed>exa_research_start</tools_needed>
+    <complexity>basic</complexity>
+  </qa_pair>
+
+  <!-- Q10: Complex multi-step research -->
+  <qa_pair>
+    <question>Find pages similar to a top Hacker News post about LLMs, then use the answer tool to synthesize what the AI community thinks about open-source vs closed-source models. Provide a summary with at least 3 cited sources.</question>
+    <answer>[Run exa_search for HN, exa_find_similar on result, then exa_answer to synthesize]</answer>
+    <tools_needed>exa_search, exa_find_similar, exa_answer</tools_needed>
+    <complexity>complex</complexity>
+  </qa_pair>
+</evaluation>

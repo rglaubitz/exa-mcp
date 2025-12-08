@@ -1,0 +1,20 @@
+{
+  "project": {
+    "name": "exa-mcp-enhanced",
+    "type": "python-mcp-server"
+  },
+  "skills": {
+    "enabled": [
+      "python-uv-dev",
+      "feature-planning",
+      "systematic-debugging",
+      "verification-before-completion"
+    ]
+  },
+  "preferences": {
+    "packageManager": "uv",
+    "testRunner": "pytest",
+    "linter": "ruff",
+    "formatter": "ruff"
+  }
+}
