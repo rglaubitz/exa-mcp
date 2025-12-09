@@ -311,7 +311,7 @@ class ExaClient:
         }
         if output_schema:
             payload["outputSchema"] = output_schema
-        return await self._request("POST", "/research", json=payload)
+        return await self._request("POST", "/research/v1", json=payload)
 
     async def research_get(self, research_id: str) -> dict[str, Any]:
         """Get the status and results of a research task.
@@ -322,7 +322,7 @@ class ExaClient:
         Returns:
             Research task status and results (if completed).
         """
-        return await self._request("GET", f"/research/{research_id}")
+        return await self._request("GET", f"/research/v1/{research_id}")
 
     async def research_list(self) -> dict[str, Any]:
         """List all research tasks.
@@ -330,7 +330,7 @@ class ExaClient:
         Returns:
             List of research tasks with their statuses.
         """
-        return await self._request("GET", "/research")
+        return await self._request("GET", "/research/v1")
 
     # ==========================================================================
     # Websets API (v0)
