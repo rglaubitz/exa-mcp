@@ -112,7 +112,7 @@ def main() -> None:
         host = os.getenv("MCP_HOST", "0.0.0.0")
         port = int(os.getenv("MCP_PORT", "8080"))
         logger.info(f"Starting MCP server on HTTP transport ({host}:{port})...")
-        mcp.run(transport="sse", host=host, port=port)
+        mcp.run(transport="streamable-http", host=host, port=port)
     else:
         logger.info("Starting MCP server on STDIO transport...")
         mcp.run()
