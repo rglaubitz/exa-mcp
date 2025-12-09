@@ -285,40 +285,44 @@ class ExaClient:
         return await self._request("POST", "/answer", json=payload)
 
     # ==========================================================================
-    # Research API
+    # Research API (v1)
     # ==========================================================================
 
     async def research_create(
         self,
-        query: str,
+        instructions: str,
         *,
-        output_type: str = "report",
+        model: str = "exa-research",
+        output_schema: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Create a new async research task.
 
         Args:
-            query: Research query or topic.
-            output_type: Type of output (report, summary, etc.).
+            instructions: Natural language instructions for the research task.
+            model: Model to use ('exa-research' or 'exa-research-pro').
+            output_schema: Optional JSON schema for structured output.
 
         Returns:
-            Research task metadata including task ID.
+            Research task metadata including researchId.
         """
         payload: dict[str, Any] = {
-            "query": query,
-            "outputType": output_type,
+            "instructions": instructions,
+            "model": model,
         }
-        return await self._request("POST", "/research/tasks", json=payload)
+        if output_schema:
+            payload["outputSchema"] = output_schema
+        return await self._request("POST", "/research", json=payload)
 
-    async def research_get(self, task_id: str) -> dict[str, Any]:
+    async def research_get(self, research_id: str) -> dict[str, Any]:
         """Get the status and results of a research task.
 
         Args:
-            task_id: ID of the research task.
+            research_id: ID of the research task.
 
         Returns:
             Research task status and results (if completed).
         """
-        return await self._request("GET", f"/research/tasks/{task_id}")
+        return await self._request("GET", f"/research/{research_id}")
 
     async def research_list(self) -> dict[str, Any]:
         """List all research tasks.
@@ -326,7 +330,7 @@ class ExaClient:
         Returns:
             List of research tasks with their statuses.
         """
-        return await self._request("GET", "/research/tasks")
+        return await self._request("GET", "/research")
 
     # ==========================================================================
     # Websets API (v0)

@@ -163,9 +163,10 @@ def answer_response():
 def research_create_response():
     """Sample research task creation response."""
     return {
-        "id": "task_abc123",
+        "researchId": "task_abc123",
         "status": "pending",
-        "query": "Latest breakthroughs in fusion energy",
+        "instructions": "Latest breakthroughs in fusion energy",
+        "model": "exa-research",
         "createdAt": "2024-12-08T10:00:00Z",
     }
 
@@ -174,9 +175,10 @@ def research_create_response():
 def research_completed_response():
     """Sample completed research task response."""
     return {
-        "id": "task_abc123",
+        "researchId": "task_abc123",
         "status": "completed",
-        "query": "Latest breakthroughs in fusion energy",
+        "instructions": "Latest breakthroughs in fusion energy",
+        "model": "exa-research",
         "createdAt": "2024-12-08T10:00:00Z",
         "completedAt": "2024-12-08T10:05:00Z",
         "result": """# Fusion Energy Breakthroughs 2024
@@ -199,21 +201,24 @@ def research_list_response():
     return {
         "tasks": [
             {
-                "id": "task_abc123",
+                "researchId": "task_abc123",
                 "status": "completed",
-                "query": "Fusion energy breakthroughs",
+                "instructions": "Fusion energy breakthroughs",
+                "model": "exa-research",
                 "createdAt": "2024-12-08T10:00:00Z",
             },
             {
-                "id": "task_def456",
+                "researchId": "task_def456",
                 "status": "running",
-                "query": "Quantum computing advances",
+                "instructions": "Quantum computing advances",
+                "model": "exa-research",
                 "createdAt": "2024-12-08T11:00:00Z",
             },
             {
-                "id": "task_ghi789",
+                "researchId": "task_ghi789",
                 "status": "pending",
-                "query": "AI safety research",
+                "instructions": "AI safety research",
+                "model": "exa-research-pro",
                 "createdAt": "2024-12-08T12:00:00Z",
             },
         ]

@@ -36,18 +36,20 @@ def _format_task_markdown(task: dict[str, Any]) -> str:
         "failed": "❌",
     }.get(status, "❓")
 
+    research_id = task.get("researchId", task.get("id", "unknown"))
     lines = [
-        f"### {status_emoji} Task: {task.get('id', 'unknown')}",
+        f"### {status_emoji} Task: {research_id}",
         f"**Status:** {status}",
-        f"**Query:** {task.get('query', 'N/A')}",
+        f"**Instructions:** {task.get('instructions', 'N/A')}",
+        f"**Model:** {task.get('model', 'N/A')}",
     ]
 
-    if task.get("created_at") or task.get("createdAt"):
-        created = task.get("created_at") or task.get("createdAt")
+    if task.get("createdAt") or task.get("created_at"):
+        created = task.get("createdAt") or task.get("created_at")
         lines.append(f"**Created:** {created}")
 
-    if task.get("completed_at") or task.get("completedAt"):
-        completed = task.get("completed_at") or task.get("completedAt")
+    if task.get("completedAt") or task.get("completed_at"):
+        completed = task.get("completedAt") or task.get("completed_at")
         lines.append(f"**Completed:** {completed}")
 
     if task.get("error"):
@@ -65,23 +67,27 @@ def _format_result_markdown(data: dict[str, Any]) -> str:
     Returns:
         Formatted markdown string.
     """
-    task_id = data.get("id", "unknown")
+    research_id = data.get("researchId", data.get("id", "unknown"))
     status = data.get("status", "unknown")
-    query = data.get("query", "N/A")
-    result = data.get("result", "")
+    instructions = data.get("instructions", "N/A")
+    result = data.get("result", data.get("output", ""))
 
     lines = [
-        f"# Research Results: {task_id}",
+        f"# Research Results: {research_id}",
         "",
         f"**Status:** {status}",
-        f"**Query:** {query}",
+        f"**Instructions:** {instructions}",
         "",
     ]
 
     if result:
         lines.append("## Report")
         lines.append("")
-        lines.append(result)
+        # Result might be a string or an object (for structured output)
+        if isinstance(result, dict):
+            lines.append(json.dumps(result, indent=2))
+        else:
+            lines.append(str(result))
     elif status == "running":
         lines.append("*Research is still in progress. Check back later.*")
     elif status == "pending":
@@ -153,10 +159,8 @@ async def exa_research_start(params: CreateResearchInput, ctx: Context) -> str:
 
     Args:
         params: CreateResearchInput containing:
-            - query (str): Research question or topic (required)
-            - output_type (str): 'report', 'summary', or 'detailed'
-            - include_domains (list[str]): Only research from these domains
-            - exclude_domains (list[str]): Exclude these domains
+            - instructions (str): Natural language instructions for the research (required)
+            - model (str): 'exa-research' (default) or 'exa-research-pro' (higher quality)
         ctx: FastMCP request context (injected automatically).
 
     Returns:
@@ -164,34 +168,35 @@ async def exa_research_start(params: CreateResearchInput, ctx: Context) -> str:
 
     Examples:
         Start research:
-            {"query": "What are the latest breakthroughs in fusion energy?"}
+            {"instructions": "What are the latest breakthroughs in fusion energy?"}
 
         Detailed research:
-            {"query": "Compare cloud providers for ML workloads",
-             "output_type": "detailed"}
+            {"instructions": "Compare cloud providers for ML workloads",
+             "model": "exa-research-pro"}
     """
     app_ctx = _get_app_context(ctx)
 
     try:
         # Create research task
         # Handle both enum objects (with .value) and raw strings from HTTP transport
+        model = getattr(params.model, "value", params.model) if params.model else "exa-research"
         data = await app_ctx.exa_client.research_create(
-            query=params.query,
-            output_type=getattr(params.output_type, "value", params.output_type)
-            if params.output_type
-            else "report",
+            instructions=params.instructions,
+            model=model,
         )
 
-        # Format response with task ID prominently
-        task_id = data.get("id", data.get("taskId", "unknown"))
+        # Format response with research ID prominently
+        research_id = data.get("researchId", data.get("id", "unknown"))
         status = data.get("status", "pending")
 
         response = (
             f"# Research Task Created\n\n"
-            f"**Task ID:** `{task_id}`\n"
+            f"**Research ID:** `{research_id}`\n"
             f"**Status:** {status}\n"
-            f"**Query:** {params.query}\n\n"
-            f"Use `exa_research_check` with task_id='{task_id}' to get results."
+            f"**Model:** {model}\n"
+            f"**Instructions:** {params.instructions}\n\n"
+            f"Use `exa_research_check` with research_id='{research_id}' to get results.\n"
+            f"Note: Research typically takes 20-90 seconds to complete."
         )
 
         return response
@@ -218,7 +223,7 @@ async def exa_research_check(params: GetResearchInput, ctx: Context) -> str:
 
     Args:
         params: GetResearchInput containing:
-            - task_id (str): The research task ID (required)
+            - research_id (str): The research task ID (required)
             - response_format (str): 'markdown' or 'json'
         ctx: FastMCP request context (injected automatically).
 
@@ -227,16 +232,16 @@ async def exa_research_check(params: GetResearchInput, ctx: Context) -> str:
 
     Examples:
         Check task:
-            {"task_id": "task_abc123"}
+            {"research_id": "task_abc123"}
 
         Get JSON:
-            {"task_id": "task_abc123", "response_format": "json"}
+            {"research_id": "task_abc123", "response_format": "json"}
     """
     app_ctx = _get_app_context(ctx)
 
     try:
         # Get research task status/results
-        data = await app_ctx.exa_client.research_get(params.task_id)
+        data = await app_ctx.exa_client.research_get(params.research_id)
 
         # Format response
         if params.response_format == ResponseFormat.JSON:

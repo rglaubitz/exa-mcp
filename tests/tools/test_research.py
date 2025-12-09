@@ -29,24 +29,26 @@ class TestFormatTaskMarkdown:
     def test_pending_task(self):
         """Test formatting a pending task."""
         task = {
-            "id": "task_123",
+            "researchId": "task_123",
             "status": "pending",
-            "query": "Test research query",
+            "instructions": "Test research instructions",
+            "model": "exa-research",
             "createdAt": "2024-12-08T10:00:00Z",
         }
         output = _format_task_markdown(task)
 
         assert "task_123" in output
         assert "pending" in output
-        assert "Test research query" in output
+        assert "Test research instructions" in output
         assert "2024-12-08T10:00:00Z" in output
 
     def test_running_task(self):
         """Test formatting a running task."""
         task = {
-            "id": "task_456",
+            "researchId": "task_456",
             "status": "running",
-            "query": "Running research",
+            "instructions": "Running research",
+            "model": "exa-research",
         }
         output = _format_task_markdown(task)
 
@@ -55,9 +57,10 @@ class TestFormatTaskMarkdown:
     def test_completed_task(self):
         """Test formatting a completed task."""
         task = {
-            "id": "task_789",
+            "researchId": "task_789",
             "status": "completed",
-            "query": "Completed research",
+            "instructions": "Completed research",
+            "model": "exa-research",
             "createdAt": "2024-12-08T10:00:00Z",
             "completedAt": "2024-12-08T10:05:00Z",
         }
@@ -69,9 +72,10 @@ class TestFormatTaskMarkdown:
     def test_failed_task(self):
         """Test formatting a failed task with error."""
         task = {
-            "id": "task_err",
+            "researchId": "task_err",
             "status": "failed",
-            "query": "Failed research",
+            "instructions": "Failed research",
+            "model": "exa-research",
             "error": "API rate limit exceeded",
         }
         output = _format_task_markdown(task)
@@ -86,9 +90,10 @@ class TestFormatResultMarkdown:
     def test_completed_result(self):
         """Test formatting completed research results."""
         data = {
-            "id": "task_abc123",
+            "researchId": "task_abc123",
             "status": "completed",
-            "query": "Fusion energy research",
+            "instructions": "Fusion energy research",
+            "model": "exa-research",
             "result": "# Fusion Energy Report\n\nKey findings here...",
         }
         output = _format_result_markdown(data)
@@ -101,9 +106,10 @@ class TestFormatResultMarkdown:
     def test_running_result(self):
         """Test formatting running task (no results yet)."""
         data = {
-            "id": "task_xyz",
+            "researchId": "task_xyz",
             "status": "running",
-            "query": "Ongoing research",
+            "instructions": "Ongoing research",
+            "model": "exa-research",
         }
         output = _format_result_markdown(data)
 
@@ -113,9 +119,10 @@ class TestFormatResultMarkdown:
     def test_pending_result(self):
         """Test formatting pending task."""
         data = {
-            "id": "task_queue",
+            "researchId": "task_queue",
             "status": "pending",
-            "query": "Queued research",
+            "instructions": "Queued research",
+            "model": "exa-research",
         }
         output = _format_result_markdown(data)
 
@@ -137,9 +144,24 @@ class TestFormatTaskListMarkdown:
         """Test formatting multiple tasks."""
         data = {
             "tasks": [
-                {"id": "task_1", "status": "completed", "query": "Query 1"},
-                {"id": "task_2", "status": "running", "query": "Query 2"},
-                {"id": "task_3", "status": "pending", "query": "Query 3"},
+                {
+                    "researchId": "task_1",
+                    "status": "completed",
+                    "instructions": "Query 1",
+                    "model": "exa-research",
+                },
+                {
+                    "researchId": "task_2",
+                    "status": "running",
+                    "instructions": "Query 2",
+                    "model": "exa-research",
+                },
+                {
+                    "researchId": "task_3",
+                    "status": "pending",
+                    "instructions": "Query 3",
+                    "model": "exa-research-pro",
+                },
             ]
         }
         output = _format_task_list_markdown(data)
@@ -197,7 +219,7 @@ class TestExaResearchStartTool:
             async with Client(mcp) as client:
                 result = await client.call_tool(
                     "exa_research_start",
-                    {"params": {"query": "Latest breakthroughs in fusion energy"}},
+                    {"params": {"instructions": "Latest breakthroughs in fusion energy"}},
                 )
 
                 text = result.content[0].text
@@ -228,7 +250,7 @@ class TestExaResearchCheckTool:
 
             async with Client(mcp) as client:
                 result = await client.call_tool(
-                    "exa_research_check", {"params": {"task_id": "task_abc123"}}
+                    "exa_research_check", {"params": {"research_id": "task_abc123"}}
                 )
 
                 text = result.content[0].text
@@ -256,12 +278,12 @@ class TestExaResearchCheckTool:
             async with Client(mcp) as client:
                 result = await client.call_tool(
                     "exa_research_check",
-                    {"params": {"task_id": "task_abc123", "response_format": "json"}},
+                    {"params": {"research_id": "task_abc123", "response_format": "json"}},
                 )
 
                 text = result.content[0].text
                 data = json.loads(text)
-                assert data["id"] == "task_abc123"
+                assert data["researchId"] == "task_abc123"
                 assert data["status"] == "completed"
 
 

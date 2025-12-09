@@ -17,12 +17,11 @@ class ResearchTaskStatus(str, Enum):
     FAILED = "failed"
 
 
-class ResearchOutputType(str, Enum):
-    """Output type for research tasks."""
+class ResearchModel(str, Enum):
+    """Model to use for research tasks."""
 
-    REPORT = "report"
-    SUMMARY = "summary"
-    DETAILED = "detailed"
+    EXA_RESEARCH = "exa-research"
+    EXA_RESEARCH_PRO = "exa-research-pro"
 
 
 class CreateResearchInput(BaseInput):
@@ -32,33 +31,23 @@ class CreateResearchInput(BaseInput):
     and return comprehensive results.
     """
 
-    query: str = Field(
+    instructions: str = Field(
         ...,
         min_length=1,
-        max_length=2000,
-        description="The research question or topic",
+        max_length=4096,
+        description="Natural language instructions for the research task",
     )
 
-    output_type: ResearchOutputType = Field(
-        default=ResearchOutputType.REPORT,
-        description="Type of output: 'report', 'summary', or 'detailed'",
-    )
-
-    include_domains: list[str] | None = Field(
-        default=None,
-        description="Only research from these domains",
-    )
-
-    exclude_domains: list[str] | None = Field(
-        default=None,
-        description="Exclude these domains from research",
+    model: ResearchModel = Field(
+        default=ResearchModel.EXA_RESEARCH,
+        description="Model to use: 'exa-research' (default) or 'exa-research-pro' (higher quality)",
     )
 
 
 class GetResearchInput(BaseInput):
     """Input parameters for getting research task status/results."""
 
-    task_id: str = Field(
+    research_id: str = Field(
         ...,
         min_length=1,
         description="The research task ID to check",
@@ -94,10 +83,15 @@ class ListResearchInput(BaseInput):
 class ResearchTask(BaseModel):
     """A research task returned from the API."""
 
-    id: str = Field(description="Task ID")
+    research_id: str = Field(alias="researchId", description="Research task ID")
     status: ResearchTaskStatus = Field(description="Current status")
-    query: str = Field(description="Original research query")
-    created_at: str | None = Field(default=None, description="Creation timestamp")
-    completed_at: str | None = Field(default=None, description="Completion timestamp")
+    instructions: str = Field(description="Original research instructions")
+    model: str = Field(description="Model used for research")
+    created_at: str | None = Field(
+        default=None, alias="createdAt", description="Creation timestamp"
+    )
+    completed_at: str | None = Field(
+        default=None, alias="completedAt", description="Completion timestamp"
+    )
     result: str | None = Field(default=None, description="Research result (if completed)")
     error: str | None = Field(default=None, description="Error message (if failed)")
