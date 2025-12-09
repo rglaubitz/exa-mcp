@@ -175,11 +175,13 @@ async def exa_search(params: SearchInput, ctx: Context) -> str:
         content_opts = params.content.to_api_params() if params.content else {}
 
         # Execute search
+        # Note: Enums inherit from str, so we can pass them directly or use str()
+        # to handle both enum objects and raw strings from HTTP transport
         data = await app_ctx.exa_client.search(
             query=params.query,
             num_results=params.num_results,
-            search_type=params.search_type.value if params.search_type else "auto",
-            category=params.category.value if params.category else None,
+            search_type=str(params.search_type) if params.search_type else "auto",
+            category=str(params.category) if params.category else None,
             include_domains=params.include_domains,
             exclude_domains=params.exclude_domains,
             start_published_date=params.start_published_date,
@@ -189,7 +191,7 @@ async def exa_search(params: SearchInput, ctx: Context) -> str:
             include_text=params.include_text,
             exclude_text=params.exclude_text,
             use_autoprompt=params.use_autoprompt,
-            livecrawl=params.livecrawl.value if params.livecrawl else None,
+            livecrawl=str(params.livecrawl) if params.livecrawl else None,
             **content_opts,
         )
 

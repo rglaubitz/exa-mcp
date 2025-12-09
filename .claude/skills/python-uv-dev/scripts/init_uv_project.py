@@ -142,10 +142,10 @@ uv.lock
 """)
 
     print(f"\n✅ Project {project_name} initialized successfully!")
-    print(f"\nNext steps:")
+    print("\nNext steps:")
     print(f"  cd {project_name}")
-    print(f"  uv add <dependencies>")
-    print(f"  uv run pytest")
+    print("  uv add <dependencies>")
+    print("  uv run pytest")
 
 
 def main():

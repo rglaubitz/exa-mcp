@@ -174,9 +174,10 @@ async def exa_research_start(params: CreateResearchInput, ctx: Context) -> str:
 
     try:
         # Create research task
+        # Use str() to handle both enum objects and raw strings from HTTP transport
         data = await app_ctx.exa_client.research_create(
             query=params.query,
-            output_type=params.output_type.value if params.output_type else "report",
+            output_type=str(params.output_type) if params.output_type else "report",
         )
 
         # Format response with task ID prominently

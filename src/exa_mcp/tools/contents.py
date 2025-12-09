@@ -149,9 +149,10 @@ async def exa_get_contents(params: GetContentsInput, ctx: Context) -> str:
         content_opts = params.content.to_api_params() if params.content else {"text": True}
 
         # Execute get contents
+        # Use str() to handle both enum objects and raw strings from HTTP transport
         data = await app_ctx.exa_client.get_contents(
             ids=params.urls,
-            livecrawl=params.livecrawl.value if params.livecrawl else None,
+            livecrawl=str(params.livecrawl) if params.livecrawl else None,
             subpages=params.subpages,
             **content_opts,
         )
