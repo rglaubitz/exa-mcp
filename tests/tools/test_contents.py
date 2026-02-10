@@ -160,7 +160,7 @@ class TestExaGetContentsTool:
 
             async with Client(mcp) as client:
                 result = await client.call_tool(
-                    "exa_get_contents", {"params": {"urls": ["https://example.com/article"]}}
+                    "exa_get_contents", {"urls": ["https://example.com/article"]}
                 )
 
                 text = result.content[0].text
@@ -188,10 +188,8 @@ class TestExaGetContentsTool:
                 result = await client.call_tool(
                     "exa_get_contents",
                     {
-                        "params": {
-                            "urls": ["https://example.com/article"],
-                            "response_format": "json",
-                        }
+                        "urls": ["https://example.com/article"],
+                        "response_format": "json",
                     },
                 )
 
@@ -226,7 +224,7 @@ class TestExaGetContentsTool:
             async with Client(mcp) as client:
                 result = await client.call_tool(
                     "exa_get_contents",
-                    {"params": {"urls": ["https://example.com/1", "https://example.com/2"]}},
+                    {"urls": ["https://example.com/1", "https://example.com/2"]},
                 )
 
                 text = result.content[0].text
@@ -253,8 +251,105 @@ class TestExaGetContentsTool:
 
             async with Client(mcp) as client:
                 result = await client.call_tool(
-                    "exa_get_contents", {"params": {"urls": ["https://invalid-url.com"]}}
+                    "exa_get_contents", {"urls": ["https://invalid-url.com"]}
                 )
 
                 text = result.content[0].text
                 assert "No content extracted" in text
+
+
+# =============================================================================
+# Integration Tests: Flat Parameters (NEW)
+# =============================================================================
+
+
+class TestExaGetContentsFlatParams:
+    """Tests for exa_get_contents tool with flat parameter format (no nested params wrapper)."""
+
+    @pytest.mark.asyncio
+    async def test_get_contents_flat_params(self, contents_response):
+        """Test that exa_get_contents accepts flat parameters without params wrapper."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response(contents_response)
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # FLAT format: no "params" wrapper
+                result = await client.call_tool(
+                    "exa_get_contents", {"urls": ["https://example.com/article"]}
+                )
+
+                text = result.content[0].text
+                assert "Full Article Content" in text
+                assert "John Writer" in text
+
+    @pytest.mark.asyncio
+    async def test_get_contents_flat_params_with_options(self, contents_response):
+        """Test flat params with optional fields like livecrawl and response_format."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response(contents_response)
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # FLAT format with optional fields
+                result = await client.call_tool(
+                    "exa_get_contents",
+                    {
+                        "urls": ["https://example.com/article"],
+                        "livecrawl": "always",
+                        "response_format": "json",
+                    },
+                )
+
+                text = result.content[0].text
+                data = json.loads(text)
+                assert "results" in data
+
+    @pytest.mark.asyncio
+    async def test_get_contents_nested_params_rejected(self):
+        """Test that old nested params format is rejected after refactor."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response({"results": []})
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # OLD nested format should fail
+                try:
+                    result = await client.call_tool(
+                        "exa_get_contents",
+                        {"params": {"urls": ["https://example.com"]}},
+                    )
+                    text = result.content[0].text if result.content else ""
+                    assert "error" in text.lower() or "invalid" in text.lower()
+                except Exception as e:
+                    assert "params" in str(e).lower() or "urls" in str(e).lower()

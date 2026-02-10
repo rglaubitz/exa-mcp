@@ -8,9 +8,9 @@ from typing import Any
 
 from fastmcp import Context
 
-from ..constants import CHARACTER_LIMIT, ResponseFormat
+from ..constants import CHARACTER_LIMIT
 from ..exceptions import format_error_for_llm
-from ..models.contents import GetContentsInput
+from ..models.common import ContentOptions
 from ..server import AppContext, mcp
 
 
@@ -108,7 +108,14 @@ def _truncate_response(text: str) -> str:
         "openWorldHint": True,
     },
 )
-async def exa_get_contents(params: GetContentsInput, ctx: Context) -> str:
+async def exa_get_contents(
+    urls: list[str],
+    content: dict | None = None,
+    livecrawl: str | None = None,
+    subpages: int | None = None,
+    response_format: str = "markdown",
+    ctx: Context | None = None,
+) -> str:
     """Extract full content from a list of URLs.
 
     Use this to get the complete text, highlights, or summary from web pages.
@@ -119,12 +126,11 @@ async def exa_get_contents(params: GetContentsInput, ctx: Context) -> str:
     - Batch content extraction
 
     Args:
-        params: GetContentsInput containing:
-            - urls (list[str]): URLs to extract content from (required, max 100)
-            - content (ContentOptions): What to extract (text/highlights/summary)
-            - livecrawl (str): 'fallback', 'preferred', or 'always'
-            - subpages (int): Number of subpages to crawl (0-5)
-            - response_format (str): 'markdown' or 'json'
+        urls: URLs to extract content from (required, max 100)
+        content: Content extraction options (text, highlights, summary)
+        livecrawl: Live crawl mode ('fallback', 'preferred', or 'always')
+        subpages: Number of subpages to crawl (0-5)
+        response_format: 'markdown' or 'json'
         ctx: FastMCP request context (injected automatically).
 
     Returns:
@@ -145,22 +151,22 @@ async def exa_get_contents(params: GetContentsInput, ctx: Context) -> str:
     app_ctx = _get_app_context(ctx)
 
     try:
-        # Build content options from params
-        content_opts = params.content.to_api_params() if params.content else {"text": True}
+        # Build content options
+        content_opts: dict[str, Any] = {"text": True}  # Default: extract text
+        if content:
+            content_model = ContentOptions(**content)
+            content_opts = content_model.to_api_params() or {"text": True}
 
         # Execute get contents
-        # Handle both enum objects (with .value) and raw strings from HTTP transport
         data = await app_ctx.exa_client.get_contents(
-            ids=params.urls,
-            livecrawl=getattr(params.livecrawl, "value", params.livecrawl)
-            if params.livecrawl
-            else None,
-            subpages=params.subpages,
+            ids=urls,
+            livecrawl=livecrawl,
+            subpages=subpages,
             **content_opts,
         )
 
         # Format response
-        if params.response_format == ResponseFormat.JSON:
+        if response_format == "json":
             response = json.dumps(data, indent=2)
         else:
             response = _format_contents_markdown(data)
