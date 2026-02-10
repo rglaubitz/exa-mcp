@@ -8,9 +8,9 @@ from typing import Any
 
 from fastmcp import Context
 
-from ..constants import CHARACTER_LIMIT, ResponseFormat
+from ..constants import CHARACTER_LIMIT, DEFAULT_NUM_RESULTS
 from ..exceptions import format_error_for_llm
-from ..models.search import SearchInput
+from ..models.common import ContentOptions
 from ..server import AppContext, mcp
 
 
@@ -126,7 +126,25 @@ def _truncate_response(text: str) -> str:
         "openWorldHint": True,
     },
 )
-async def exa_search(params: SearchInput, ctx: Context) -> str:
+async def exa_search(
+    query: str,
+    num_results: int = DEFAULT_NUM_RESULTS,
+    search_type: str = "auto",
+    category: str | None = None,
+    include_domains: list[str] | None = None,
+    exclude_domains: list[str] | None = None,
+    start_published_date: str | None = None,
+    end_published_date: str | None = None,
+    start_crawl_date: str | None = None,
+    end_crawl_date: str | None = None,
+    include_text: list[str] | None = None,
+    exclude_text: list[str] | None = None,
+    use_autoprompt: bool = True,
+    livecrawl: str | None = None,
+    content: dict | None = None,
+    response_format: str = "markdown",
+    ctx: Context | None = None,
+) -> str:
     """Search the web using Exa's neural search engine.
 
     Exa provides high-quality semantic search results with optional content extraction.
@@ -139,19 +157,22 @@ async def exa_search(params: SearchInput, ctx: Context) -> str:
     - **Text**: Require or exclude specific phrases
 
     Args:
-        params: SearchInput containing:
-            - query (str): Search query (required)
-            - num_results (int): Number of results (1-100, default 10)
-            - search_type (str): 'auto', 'neural', or 'keyword'
-            - category (str): Content type filter
-            - include_domains (list[str]): Only these domains
-            - exclude_domains (list[str]): Skip these domains
-            - start_published_date (str): After this date (YYYY-MM-DD)
-            - end_published_date (str): Before this date (YYYY-MM-DD)
-            - include_text (list[str]): Must contain phrases
-            - exclude_text (list[str]): Must NOT contain phrases
-            - content (ContentOptions): Text/highlights/summary options
-            - response_format (str): 'markdown' or 'json'
+        query: Search query (required)
+        num_results: Number of results (1-100, default 10)
+        search_type: 'auto' (recommended), 'neural' for semantic, 'keyword' for exact
+        category: Content type filter (company, news, research paper, github, tweet, pdf)
+        include_domains: Only these domains (e.g., ['arxiv.org', 'github.com'])
+        exclude_domains: Skip these domains
+        start_published_date: After this date (YYYY-MM-DD)
+        end_published_date: Before this date (YYYY-MM-DD)
+        start_crawl_date: After this crawl date (YYYY-MM-DD)
+        end_crawl_date: Before this crawl date (YYYY-MM-DD)
+        include_text: Results must contain ALL of these phrases
+        exclude_text: Results must NOT contain any of these phrases
+        use_autoprompt: Let Exa optimize the query for better results
+        livecrawl: Live crawl mode ('fallback', 'preferred', or 'always')
+        content: Content extraction options (text, highlights, summary)
+        response_format: 'markdown' or 'json'
         ctx: FastMCP request context (injected automatically).
 
     Returns:
@@ -171,166 +192,36 @@ async def exa_search(params: SearchInput, ctx: Context) -> str:
     app_ctx = _get_app_context(ctx)
 
     try:
-        # Build content options from params
-        content_opts = params.content.to_api_params() if params.content else {}
+        # Build content options
+        content_opts: dict[str, Any] = {}
+        if content:
+            content_model = ContentOptions(**content)
+            content_opts = content_model.to_api_params()
 
         # Execute search
-        # Handle both enum objects (with .value) and raw strings from HTTP transport
         data = await app_ctx.exa_client.search(
-            query=params.query,
-            num_results=params.num_results,
-            search_type=getattr(params.search_type, "value", params.search_type) or "auto",
-            category=getattr(params.category, "value", params.category)
-            if params.category
-            else None,
-            include_domains=params.include_domains,
-            exclude_domains=params.exclude_domains,
-            start_published_date=params.start_published_date,
-            end_published_date=params.end_published_date,
-            start_crawl_date=params.start_crawl_date,
-            end_crawl_date=params.end_crawl_date,
-            include_text=params.include_text,
-            exclude_text=params.exclude_text,
-            use_autoprompt=params.use_autoprompt,
-            livecrawl=getattr(params.livecrawl, "value", params.livecrawl)
-            if params.livecrawl
-            else None,
+            query=query,
+            num_results=num_results,
+            search_type=search_type or "auto",
+            category=category,
+            include_domains=include_domains,
+            exclude_domains=exclude_domains,
+            start_published_date=start_published_date,
+            end_published_date=end_published_date,
+            start_crawl_date=start_crawl_date,
+            end_crawl_date=end_crawl_date,
+            include_text=include_text,
+            exclude_text=exclude_text,
+            use_autoprompt=use_autoprompt,
+            livecrawl=livecrawl,
             **content_opts,
         )
 
         # Format response
-        if params.response_format == ResponseFormat.JSON:
+        if response_format == "json":
             response = json.dumps(data, indent=2)
         else:
-            response = _format_results_markdown(data, params.query)
-
-        # Truncate if needed
-        return _truncate_response(response)
-
-    except Exception as e:
-        return format_error_for_llm(e)
-
-
-def _format_code_results_markdown(data: dict[str, Any], query: str) -> str:
-    """Format code search results as markdown.
-
-    Args:
-        data: API response data.
-        query: Original search query.
-
-    Returns:
-        Formatted markdown string.
-    """
-    results = data.get("results", [])
-
-    if not results:
-        return f"No code results found for: '{query}'"
-
-    lines = [f"# Code Search Results: '{query}'", ""]
-    lines.append(f"Found **{len(results)}** code-related results")
-    lines.append("")
-
-    for i, result in enumerate(results, 1):
-        lines.append(f"### {i}. {result.get('title', 'Untitled')}")
-        lines.append(f"**URL:** {result.get('url', 'N/A')}")
-
-        if result.get("publishedDate"):
-            lines.append(f"**Updated:** {result['publishedDate']}")
-
-        if result.get("score"):
-            lines.append(f"**Relevance:** {result['score']:.2f}")
-
-        # Add code highlights if available
-        if result.get("highlights"):
-            lines.append("\n**Code Snippets:**")
-            for highlight in result["highlights"][:3]:
-                lines.append(f"```\n{highlight}\n```")
-
-        # Add text excerpt if available
-        if result.get("text"):
-            text = result["text"][:800] + "..." if len(result["text"]) > 800 else result["text"]
-            lines.append(f"\n**Content:**\n{text}")
-
-        lines.append("")
-
-    return "\n".join(lines)
-
-
-@mcp.tool(
-    name="exa_code_search",
-    annotations={
-        "title": "Code Context Search",
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True,
-        "openWorldHint": True,
-    },
-)
-async def exa_code_search(params: SearchInput, ctx: Context) -> str:
-    """Search for code examples, documentation, and GitHub repositories.
-
-    This is a specialized search optimized for finding code-related content.
-    It automatically filters to GitHub and code-related sources.
-
-    Use cases:
-    - Finding code examples and implementations
-    - Searching for library documentation
-    - Discovering GitHub repositories
-    - Finding API usage examples
-
-    Args:
-        params: SearchInput containing:
-            - query (str): Code-related search query (required)
-            - num_results (int): Number of results (1-100, default 10)
-            - include_domains (list[str]): Additional domains to include
-            - exclude_domains (list[str]): Domains to exclude
-            - content (ContentOptions): Text/highlights options
-            - response_format (str): 'markdown' or 'json'
-        ctx: FastMCP request context (injected automatically).
-
-    Returns:
-        Code search results in requested format.
-
-    Examples:
-        Find examples:
-            {"query": "React useState hook examples"}
-
-        Library docs:
-            {"query": "FastAPI dependency injection",
-             "content": {"include_text": true}}
-
-        Specific repo:
-            {"query": "authentication middleware",
-             "include_domains": ["github.com/expressjs"]}
-    """
-    app_ctx = _get_app_context(ctx)
-
-    try:
-        # Build content options from params
-        content_opts = params.content.to_api_params() if params.content else {"text": True}
-
-        # Code search uses github category and specific domains
-        code_domains = ["github.com", "stackoverflow.com", "dev.to", "medium.com"]
-        if params.include_domains:
-            code_domains.extend(params.include_domains)
-
-        # Execute search with github category
-        data = await app_ctx.exa_client.search(
-            query=params.query,
-            num_results=params.num_results,
-            search_type="auto",
-            category="github",  # Focus on GitHub content
-            include_domains=code_domains,
-            exclude_domains=params.exclude_domains,
-            use_autoprompt=True,
-            **content_opts,
-        )
-
-        # Format response
-        if params.response_format == ResponseFormat.JSON:
-            response = json.dumps(data, indent=2)
-        else:
-            response = _format_code_results_markdown(data, params.query)
+            response = _format_results_markdown(data, query)
 
         # Truncate if needed
         return _truncate_response(response)

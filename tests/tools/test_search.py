@@ -1,4 +1,4 @@
-"""Tests for the exa_search and exa_code_search tools.
+"""Tests for the exa_search tool.
 
 Following MCP testing best practices:
 - Test formatting functions directly (unit tests)
@@ -12,7 +12,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from exa_mcp.tools.search import (
-    _format_code_results_markdown,
     _format_result_markdown,
     _format_results_markdown,
     _truncate_response,
@@ -113,38 +112,6 @@ class TestFormatResultsMarkdown:
         assert 'Query optimized to: "optimized query here"' in output
 
 
-class TestFormatCodeResultsMarkdown:
-    """Tests for _format_code_results_markdown helper."""
-
-    def test_empty_code_results(self):
-        """Test formatting empty code results."""
-        data = {"results": []}
-        output = _format_code_results_markdown(data, "react hooks")
-
-        assert "No code results found for: 'react hooks'" in output
-
-    def test_code_results_with_highlights(self):
-        """Test formatting code results with code snippets."""
-        data = {
-            "results": [
-                {
-                    "title": "React useState Example",
-                    "url": "https://github.com/example/repo",
-                    "score": 0.95,
-                    "highlights": ["const [count, setCount] = useState(0);"],
-                    "text": "Example of useState hook usage...",
-                },
-            ]
-        }
-        output = _format_code_results_markdown(data, "react useState")
-
-        assert "# Code Search Results: 'react useState'" in output
-        assert "Found **1** code-related results" in output
-        assert "**Code Snippets:**" in output
-        assert "```" in output  # Code block
-        assert "useState(0)" in output
-
-
 class TestTruncateResponse:
     """Tests for _truncate_response helper."""
 
@@ -188,9 +155,7 @@ class TestExaSearchTool:
         httpx_mock.add_response(json=search_response)
 
         async with Client(mcp) as client:
-            result = await client.call_tool(
-                "exa_search", {"params": {"query": "python async programming"}}
-            )
+            result = await client.call_tool("exa_search", {"query": "python async programming"})
 
             # Verify response content
             text = result.content[0].text
@@ -217,7 +182,7 @@ class TestExaSearchTool:
             async with Client(mcp) as client:
                 result = await client.call_tool(
                     "exa_search",
-                    {"params": {"query": "test", "response_format": "json"}},
+                    {"query": "test", "response_format": "json"},
                 )
 
                 # Verify JSON response
@@ -244,20 +209,28 @@ class TestExaSearchTool:
             MockClient.return_value = mock_instance
 
             async with Client(mcp) as client:
-                result = await client.call_tool(
-                    "exa_search", {"params": {"query": "nonexistent topic xyz"}}
-                )
+                result = await client.call_tool("exa_search", {"query": "nonexistent topic xyz"})
 
                 text = result.content[0].text
                 assert "No results found" in text
 
 
-class TestExaCodeSearchTool:
-    """Integration tests for exa_code_search tool."""
+# =============================================================================
+# Integration Tests: Flat Parameters (NEW)
+# =============================================================================
+
+
+class TestExaSearchFlatParams:
+    """Tests for exa_search tool with flat parameter format (no nested params wrapper)."""
+
+    @pytest.fixture(autouse=True)
+    def set_env(self, monkeypatch):
+        """Set required environment variable for tests."""
+        monkeypatch.setenv("EXA_API_KEY", "test_api_key")
 
     @pytest.mark.asyncio
-    async def test_code_search_basic(self, search_response):
-        """Test code search returns formatted results."""
+    async def test_search_flat_params(self, search_response):
+        """Test that exa_search accepts flat parameters without params wrapper."""
         from fastmcp import Client
 
         from exa_mcp.server import mcp
@@ -273,9 +246,69 @@ class TestExaCodeSearchTool:
             MockClient.return_value = mock_instance
 
             async with Client(mcp) as client:
+                # FLAT format: no "params" wrapper
+                result = await client.call_tool("exa_search", {"query": "python async programming"})
+
+                text = result.content[0].text
+                assert "Understanding Async Python" in text
+                assert "FastAPI Best Practices" in text
+
+    @pytest.mark.asyncio
+    async def test_search_flat_params_with_filters(self, search_response):
+        """Test flat params with category, domain, and content filters."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response(search_response)
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # FLAT format with multiple optional fields
                 result = await client.call_tool(
-                    "exa_code_search", {"params": {"query": "React useState examples"}}
+                    "exa_search",
+                    {
+                        "query": "transformer architecture",
+                        "category": "research paper",
+                        "include_domains": ["arxiv.org"],
+                        "num_results": 5,
+                        "response_format": "json",
+                    },
                 )
 
                 text = result.content[0].text
-                assert "Code Search Results" in text or "results" in text.lower()
+                data = json.loads(text)
+                assert "results" in data
+
+    @pytest.mark.asyncio
+    async def test_search_nested_params_rejected(self):
+        """Test that old nested params format is rejected after refactor."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response({"results": []})
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # OLD nested format should fail
+                try:
+                    result = await client.call_tool("exa_search", {"params": {"query": "test"}})
+                    text = result.content[0].text if result.content else ""
+                    assert "error" in text.lower() or "invalid" in text.lower()
+                except Exception as e:
+                    assert "params" in str(e).lower() or "query" in str(e).lower()
