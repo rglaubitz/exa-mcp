@@ -153,7 +153,7 @@ class TestExaFindSimilarTool:
 
             async with Client(mcp) as client:
                 result = await client.call_tool(
-                    "exa_find_similar", {"params": {"url": "https://example.com/article"}}
+                    "exa_find_similar", {"url": "https://example.com/article"}
                 )
 
                 text = result.content[0].text
@@ -181,10 +181,8 @@ class TestExaFindSimilarTool:
                 result = await client.call_tool(
                     "exa_find_similar",
                     {
-                        "params": {
-                            "url": "https://example.com/article",
-                            "response_format": "json",
-                        }
+                        "url": "https://example.com/article",
+                        "response_format": "json",
                     },
                 )
 
@@ -213,8 +211,106 @@ class TestExaFindSimilarTool:
             async with Client(mcp) as client:
                 result = await client.call_tool(
                     "exa_find_similar",
-                    {"params": {"url": "https://obscure-site.com/page"}},
+                    {"url": "https://obscure-site.com/page"},
                 )
 
                 text = result.content[0].text
                 assert "No similar pages found" in text
+
+
+# =============================================================================
+# Integration Tests: Flat Parameters (NEW)
+# =============================================================================
+
+
+class TestExaFindSimilarFlatParams:
+    """Tests for exa_find_similar tool with flat parameter format (no nested params wrapper)."""
+
+    @pytest.mark.asyncio
+    async def test_find_similar_flat_params(self, similar_response):
+        """Test that exa_find_similar accepts flat parameters without params wrapper."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response(similar_response)
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # FLAT format: no "params" wrapper
+                result = await client.call_tool(
+                    "exa_find_similar", {"url": "https://example.com/article"}
+                )
+
+                text = result.content[0].text
+                assert "Related Article 1" in text
+                assert "Related Article 2" in text
+
+    @pytest.mark.asyncio
+    async def test_find_similar_flat_params_with_options(self, similar_response):
+        """Test flat params with optional fields like num_results and exclude_source_domain."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response(similar_response)
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # FLAT format with optional fields
+                result = await client.call_tool(
+                    "exa_find_similar",
+                    {
+                        "url": "https://example.com/article",
+                        "num_results": 5,
+                        "exclude_source_domain": True,
+                        "response_format": "json",
+                    },
+                )
+
+                text = result.content[0].text
+                data = json.loads(text)
+                assert "results" in data
+
+    @pytest.mark.asyncio
+    async def test_find_similar_nested_params_rejected(self):
+        """Test that old nested params format is rejected after refactor."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response({"results": []})
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # OLD nested format should fail
+                try:
+                    result = await client.call_tool(
+                        "exa_find_similar",
+                        {"params": {"url": "https://example.com"}},
+                    )
+                    text = result.content[0].text if result.content else ""
+                    assert "error" in text.lower() or "invalid" in text.lower()
+                except Exception as e:
+                    assert "params" in str(e).lower() or "url" in str(e).lower()

@@ -8,9 +8,9 @@ from typing import Any
 
 from fastmcp import Context
 
-from ..constants import CHARACTER_LIMIT, ResponseFormat
+from ..constants import CHARACTER_LIMIT, DEFAULT_NUM_RESULTS
 from ..exceptions import format_error_for_llm
-from ..models.similar import FindSimilarInput
+from ..models.common import ContentOptions
 from ..server import AppContext, mcp
 
 
@@ -108,7 +108,18 @@ def _truncate_response(text: str) -> str:
         "openWorldHint": True,
     },
 )
-async def exa_find_similar(params: FindSimilarInput, ctx: Context) -> str:
+async def exa_find_similar(
+    url: str,
+    num_results: int = DEFAULT_NUM_RESULTS,
+    include_domains: list[str] | None = None,
+    exclude_domains: list[str] | None = None,
+    start_published_date: str | None = None,
+    end_published_date: str | None = None,
+    exclude_source_domain: bool = True,
+    content: dict | None = None,
+    response_format: str = "markdown",
+    ctx: Context | None = None,
+) -> str:
     """Find web pages similar to a given URL.
 
     This is a unique Exa capability that finds semantically similar content
@@ -119,16 +130,15 @@ async def exa_find_similar(params: FindSimilarInput, ctx: Context) -> str:
     - Expanding a reading list with similar content
 
     Args:
-        params: FindSimilarInput containing:
-            - url (str): Source URL to find similar pages for (required)
-            - num_results (int): Number of results (1-100, default 10)
-            - include_domains (list[str]): Only these domains
-            - exclude_domains (list[str]): Skip these domains
-            - start_published_date (str): After this date (YYYY-MM-DD)
-            - end_published_date (str): Before this date (YYYY-MM-DD)
-            - exclude_source_domain (bool): Exclude source URL's domain (default true)
-            - content (ContentOptions): Text/highlights/summary options
-            - response_format (str): 'markdown' or 'json'
+        url: Source URL to find similar pages for (required)
+        num_results: Number of results (1-100, default 10)
+        include_domains: Only these domains
+        exclude_domains: Skip these domains
+        start_published_date: After this date (YYYY-MM-DD)
+        end_published_date: Before this date (YYYY-MM-DD)
+        exclude_source_domain: Exclude source URL's domain (default true)
+        content: Content extraction options (text, highlights, summary)
+        response_format: 'markdown' or 'json'
         ctx: FastMCP request context (injected automatically).
 
     Returns:
@@ -149,26 +159,29 @@ async def exa_find_similar(params: FindSimilarInput, ctx: Context) -> str:
     app_ctx = _get_app_context(ctx)
 
     try:
-        # Build content options from params
-        content_opts = params.content.to_api_params() if params.content else {}
+        # Build content options
+        content_opts: dict[str, Any] = {}
+        if content:
+            content_model = ContentOptions(**content)
+            content_opts = content_model.to_api_params()
 
         # Execute find similar
         data = await app_ctx.exa_client.find_similar(
-            url=params.url,
-            num_results=params.num_results,
-            include_domains=params.include_domains,
-            exclude_domains=params.exclude_domains,
-            start_published_date=params.start_published_date,
-            end_published_date=params.end_published_date,
-            exclude_source_domain=params.exclude_source_domain,
+            url=url,
+            num_results=num_results,
+            include_domains=include_domains,
+            exclude_domains=exclude_domains,
+            start_published_date=start_published_date,
+            end_published_date=end_published_date,
+            exclude_source_domain=exclude_source_domain,
             **content_opts,
         )
 
         # Format response
-        if params.response_format == ResponseFormat.JSON:
+        if response_format == "json":
             response = json.dumps(data, indent=2)
         else:
-            response = _format_results_markdown(data, params.url)
+            response = _format_results_markdown(data, url)
 
         # Truncate if needed
         return _truncate_response(response)
