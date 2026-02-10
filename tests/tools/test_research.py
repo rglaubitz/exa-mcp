@@ -219,7 +219,7 @@ class TestExaResearchStartTool:
             async with Client(mcp) as client:
                 result = await client.call_tool(
                     "exa_research_start",
-                    {"params": {"instructions": "Latest breakthroughs in fusion energy"}},
+                    {"instructions": "Latest breakthroughs in fusion energy"},
                 )
 
                 text = result.content[0].text
@@ -250,7 +250,7 @@ class TestExaResearchCheckTool:
 
             async with Client(mcp) as client:
                 result = await client.call_tool(
-                    "exa_research_check", {"params": {"research_id": "task_abc123"}}
+                    "exa_research_check", {"research_id": "task_abc123"}
                 )
 
                 text = result.content[0].text
@@ -278,7 +278,7 @@ class TestExaResearchCheckTool:
             async with Client(mcp) as client:
                 result = await client.call_tool(
                     "exa_research_check",
-                    {"params": {"research_id": "task_abc123", "response_format": "json"}},
+                    {"research_id": "task_abc123", "response_format": "json"},
                 )
 
                 text = result.content[0].text
@@ -308,7 +308,7 @@ class TestExaResearchListTool:
             MockClient.return_value = mock_instance
 
             async with Client(mcp) as client:
-                result = await client.call_tool("exa_research_list", {"params": {}})
+                result = await client.call_tool("exa_research_list", {})
 
                 text = result.content[0].text
                 assert "Research Tasks" in text
@@ -333,9 +333,7 @@ class TestExaResearchListTool:
             MockClient.return_value = mock_instance
 
             async with Client(mcp) as client:
-                result = await client.call_tool(
-                    "exa_research_list", {"params": {"response_format": "json"}}
-                )
+                result = await client.call_tool("exa_research_list", {"response_format": "json"})
 
                 text = result.content[0].text
                 data = json.loads(text)
@@ -361,7 +359,154 @@ class TestExaResearchListTool:
             MockClient.return_value = mock_instance
 
             async with Client(mcp) as client:
-                result = await client.call_tool("exa_research_list", {"params": {}})
+                result = await client.call_tool("exa_research_list", {})
 
                 text = result.content[0].text
                 assert "No research tasks found" in text
+
+
+# =============================================================================
+# Integration Tests: Flat Parameters (NEW)
+# =============================================================================
+
+
+class TestExaResearchFlatParams:
+    """Tests for exa_research tools with flat parameter format (no nested params wrapper)."""
+
+    @pytest.mark.asyncio
+    async def test_research_start_flat_params(self, research_create_response):
+        """Test that exa_research_start accepts flat parameters."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response(research_create_response)
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # FLAT format: no "params" wrapper
+                result = await client.call_tool(
+                    "exa_research_start",
+                    {"instructions": "Latest breakthroughs in fusion energy"},
+                )
+
+                text = result.content[0].text
+                assert "Research Task Created" in text
+                assert "task_abc123" in text
+
+    @pytest.mark.asyncio
+    async def test_research_start_flat_with_model(self, research_create_response):
+        """Test flat params with model option."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response(research_create_response)
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                result = await client.call_tool(
+                    "exa_research_start",
+                    {
+                        "instructions": "Compare cloud providers",
+                        "model": "exa-research-pro",
+                    },
+                )
+
+                text = result.content[0].text
+                assert "Research Task Created" in text
+
+    @pytest.mark.asyncio
+    async def test_research_check_flat_params(self, research_completed_response):
+        """Test that exa_research_check accepts flat parameters."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response(research_completed_response)
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # FLAT format
+                result = await client.call_tool(
+                    "exa_research_check", {"research_id": "task_abc123"}
+                )
+
+                text = result.content[0].text
+                assert "Research Results" in text
+                assert "Fusion Energy Breakthroughs" in text
+
+    @pytest.mark.asyncio
+    async def test_research_list_flat_params(self, research_list_response):
+        """Test that exa_research_list accepts flat parameters."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response(research_list_response)
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # FLAT format - no params needed for list
+                result = await client.call_tool("exa_research_list", {})
+
+                text = result.content[0].text
+                assert "Research Tasks" in text
+                assert "3" in text
+
+    @pytest.mark.asyncio
+    async def test_research_start_nested_params_rejected(self):
+        """Test that old nested params format is rejected."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response({"researchId": "test", "status": "pending"})
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # OLD nested format should fail
+                try:
+                    result = await client.call_tool(
+                        "exa_research_start",
+                        {"params": {"instructions": "test"}},
+                    )
+                    text = result.content[0].text if result.content else ""
+                    assert "error" in text.lower() or "invalid" in text.lower()
+                except Exception as e:
+                    assert "params" in str(e).lower() or "instructions" in str(e).lower()

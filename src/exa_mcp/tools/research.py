@@ -8,9 +8,8 @@ from typing import Any
 
 from fastmcp import Context
 
-from ..constants import CHARACTER_LIMIT, ResponseFormat
+from ..constants import CHARACTER_LIMIT
 from ..exceptions import format_error_for_llm
-from ..models.research import CreateResearchInput, GetResearchInput, ListResearchInput
 from ..server import AppContext, mcp
 
 
@@ -144,7 +143,11 @@ def _truncate_response(text: str) -> str:
         "openWorldHint": True,
     },
 )
-async def exa_research_start(params: CreateResearchInput, ctx: Context) -> str:
+async def exa_research_start(
+    instructions: str,
+    model: str = "exa-research",
+    ctx: Context | None = None,
+) -> str:
     """Start an async deep research task on a topic.
 
     This creates a long-running research task that performs comprehensive
@@ -158,9 +161,8 @@ async def exa_research_start(params: CreateResearchInput, ctx: Context) -> str:
     - Multi-source fact gathering
 
     Args:
-        params: CreateResearchInput containing:
-            - instructions (str): Natural language instructions for the research (required)
-            - model (str): 'exa-research' (default) or 'exa-research-pro' (higher quality)
+        instructions: Natural language instructions for the research (required)
+        model: 'exa-research' (default) or 'exa-research-pro' (higher quality)
         ctx: FastMCP request context (injected automatically).
 
     Returns:
@@ -178,10 +180,8 @@ async def exa_research_start(params: CreateResearchInput, ctx: Context) -> str:
 
     try:
         # Create research task
-        # Handle both enum objects (with .value) and raw strings from HTTP transport
-        model = getattr(params.model, "value", params.model) if params.model else "exa-research"
         data = await app_ctx.exa_client.research_create(
-            instructions=params.instructions,
+            instructions=instructions,
             model=model,
         )
 
@@ -194,7 +194,7 @@ async def exa_research_start(params: CreateResearchInput, ctx: Context) -> str:
             f"**Research ID:** `{research_id}`\n"
             f"**Status:** {status}\n"
             f"**Model:** {model}\n"
-            f"**Instructions:** {params.instructions}\n\n"
+            f"**Instructions:** {instructions}\n\n"
             f"Use `exa_research_check` with research_id='{research_id}' to get results.\n"
             f"Note: Research typically takes 20-90 seconds to complete."
         )
@@ -215,16 +215,19 @@ async def exa_research_start(params: CreateResearchInput, ctx: Context) -> str:
         "openWorldHint": True,
     },
 )
-async def exa_research_check(params: GetResearchInput, ctx: Context) -> str:
+async def exa_research_check(
+    research_id: str,
+    response_format: str = "markdown",
+    ctx: Context | None = None,
+) -> str:
     """Check the status and get results of a research task.
 
     Poll this endpoint to get research results after starting a task
     with exa_research_start.
 
     Args:
-        params: GetResearchInput containing:
-            - research_id (str): The research task ID (required)
-            - response_format (str): 'markdown' or 'json'
+        research_id: The research task ID (required)
+        response_format: 'markdown' or 'json'
         ctx: FastMCP request context (injected automatically).
 
     Returns:
@@ -241,10 +244,10 @@ async def exa_research_check(params: GetResearchInput, ctx: Context) -> str:
 
     try:
         # Get research task status/results
-        data = await app_ctx.exa_client.research_get(params.research_id)
+        data = await app_ctx.exa_client.research_get(research_id)
 
         # Format response
-        if params.response_format == ResponseFormat.JSON:
+        if response_format == "json":
             response = json.dumps(data, indent=2)
         else:
             response = _format_result_markdown(data)
@@ -266,16 +269,20 @@ async def exa_research_check(params: GetResearchInput, ctx: Context) -> str:
         "openWorldHint": True,
     },
 )
-async def exa_research_list(params: ListResearchInput, ctx: Context) -> str:
+async def exa_research_list(
+    limit: int = 10,
+    status: str | None = None,
+    response_format: str = "markdown",
+    ctx: Context | None = None,
+) -> str:
     """List all research tasks.
 
     Get an overview of all your research tasks and their statuses.
 
     Args:
-        params: ListResearchInput containing:
-            - limit (int): Maximum tasks to return (1-100, default 10)
-            - status (str): Filter by status (pending/running/completed/failed)
-            - response_format (str): 'markdown' or 'json'
+        limit: Maximum tasks to return (1-100, default 10)
+        status: Filter by status (pending/running/completed/failed)
+        response_format: 'markdown' or 'json'
         ctx: FastMCP request context (injected automatically).
 
     Returns:
@@ -288,6 +295,9 @@ async def exa_research_list(params: ListResearchInput, ctx: Context) -> str:
         Filter completed:
             {"status": "completed", "limit": 20}
     """
+    # Parameters accepted for schema compatibility but not used by API yet:
+    _ = (limit, status)
+
     app_ctx = _get_app_context(ctx)
 
     try:
@@ -295,7 +305,7 @@ async def exa_research_list(params: ListResearchInput, ctx: Context) -> str:
         data = await app_ctx.exa_client.research_list()
 
         # Format response
-        if params.response_format == ResponseFormat.JSON:
+        if response_format == "json":
             response = json.dumps(data, indent=2)
         else:
             response = _format_task_list_markdown(data)
