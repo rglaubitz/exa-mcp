@@ -166,7 +166,7 @@ class TestExaAnswerTool:
 
             async with Client(mcp) as client:
                 result = await client.call_tool(
-                    "exa_answer", {"params": {"query": "What is async programming in Python?"}}
+                    "exa_answer", {"query": "What is async programming in Python?"}
                 )
 
                 text = result.content[0].text
@@ -194,10 +194,8 @@ class TestExaAnswerTool:
                 result = await client.call_tool(
                     "exa_answer",
                     {
-                        "params": {
-                            "query": "What is async programming?",
-                            "response_format": "json",
-                        }
+                        "query": "What is async programming?",
+                        "response_format": "json",
                     },
                 )
 
@@ -228,9 +226,102 @@ class TestExaAnswerTool:
             MockClient.return_value = mock_instance
 
             async with Client(mcp) as client:
-                result = await client.call_tool(
-                    "exa_answer", {"params": {"query": "Simple question"}}
-                )
+                result = await client.call_tool("exa_answer", {"query": "Simple question"})
 
                 text = result.content[0].text
                 assert "The answer is simple." in text
+
+
+# =============================================================================
+# Integration Tests: Flat Parameters (NEW)
+# =============================================================================
+
+
+class TestExaAnswerFlatParams:
+    """Tests for exa_answer tool with flat parameter format (no nested params wrapper)."""
+
+    @pytest.mark.asyncio
+    async def test_answer_flat_params(self, answer_response):
+        """Test that exa_answer accepts flat parameters without params wrapper."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response(answer_response)
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # FLAT format: no "params" wrapper
+                result = await client.call_tool("exa_answer", {"query": "What is Python?"})
+
+                text = result.content[0].text
+                assert "async/await syntax" in text
+                assert len(text) > 0
+
+    @pytest.mark.asyncio
+    async def test_answer_flat_params_with_options(self, answer_response):
+        """Test flat params with optional fields like num_results and response_format."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response(answer_response)
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # FLAT format with optional fields
+                result = await client.call_tool(
+                    "exa_answer",
+                    {
+                        "query": "Latest AI news",
+                        "num_results": 3,
+                        "response_format": "json",
+                    },
+                )
+
+                text = result.content[0].text
+                data = json.loads(text)
+                assert "answer" in data
+                assert "citations" in data
+
+    @pytest.mark.asyncio
+    async def test_answer_nested_params_rejected(self):
+        """Test that old nested params format is rejected after refactor."""
+        from fastmcp import Client
+
+        from exa_mcp.server import mcp
+        from tests.helpers import create_mock_response
+
+        mock_resp = create_mock_response({"answer": "test", "citations": []})
+
+        with patch("httpx.AsyncClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.request.return_value = mock_resp
+            mock_instance.__aenter__.return_value = mock_instance
+            mock_instance.__aexit__.return_value = None
+            MockClient.return_value = mock_instance
+
+            async with Client(mcp) as client:
+                # OLD nested format should fail
+                try:
+                    result = await client.call_tool("exa_answer", {"params": {"query": "test"}})
+                    # If we get here, check that result indicates an error
+                    text = result.content[0].text if result.content else ""
+                    assert "error" in text.lower() or "invalid" in text.lower()
+                except Exception as e:
+                    # Expected to raise an error
+                    assert "params" in str(e).lower() or "query" in str(e).lower()

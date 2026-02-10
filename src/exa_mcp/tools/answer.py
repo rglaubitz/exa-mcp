@@ -8,9 +8,8 @@ from typing import Any
 
 from fastmcp import Context
 
-from ..constants import CHARACTER_LIMIT, ResponseFormat
+from ..constants import CHARACTER_LIMIT
 from ..exceptions import format_error_for_llm
-from ..models.answer import AnswerInput
 from ..server import AppContext, mcp
 
 
@@ -89,7 +88,17 @@ def _truncate_response(text: str) -> str:
         "openWorldHint": True,
     },
 )
-async def exa_answer(params: AnswerInput, ctx: Context) -> str:
+async def exa_answer(
+    query: str,
+    num_results: int = 5,
+    include_domains: list[str] | None = None,
+    exclude_domains: list[str] | None = None,
+    start_published_date: str | None = None,
+    end_published_date: str | None = None,
+    content: dict | None = None,
+    response_format: str = "markdown",
+    ctx: Context | None = None,
+) -> str:
     """Get a direct answer to a question with web citations.
 
     This tool uses Exa to search the web and generate a comprehensive
@@ -99,15 +108,18 @@ async def exa_answer(params: AnswerInput, ctx: Context) -> str:
     - Quick fact-checking with citations
     - Generating referenced explanations
 
+    Note: Some parameters are accepted for schema compatibility but not
+    currently supported by the Exa answer API endpoint.
+
     Args:
-        params: AnswerInput containing:
-            - query (str): Question to answer (required)
-            - num_results (int): Number of sources to cite (1-20, default 5)
-            - include_domains (list[str]): Only search these domains
-            - exclude_domains (list[str]): Exclude these domains
-            - start_published_date (str): After this date (YYYY-MM-DD)
-            - end_published_date (str): Before this date (YYYY-MM-DD)
-            - response_format (str): 'markdown' or 'json'
+        query: Question to answer (required)
+        num_results: Number of sources to cite (1-20, default 5) - not yet supported
+        include_domains: Only search these domains - not yet supported
+        exclude_domains: Exclude these domains - not yet supported
+        start_published_date: After this date (YYYY-MM-DD) - not yet supported
+        end_published_date: Before this date (YYYY-MM-DD) - not yet supported
+        content: Content extraction options for sources - not yet supported
+        response_format: 'markdown' or 'json'
         ctx: FastMCP request context (injected automatically).
 
     Returns:
@@ -126,17 +138,29 @@ async def exa_answer(params: AnswerInput, ctx: Context) -> str:
             {"query": "How does photosynthesis work?",
              "response_format": "json"}
     """
+    # Parameters accepted for schema compatibility but not used by API:
+    # num_results, include_domains, exclude_domains, start_published_date,
+    # end_published_date, content
+    _ = (
+        num_results,
+        include_domains,
+        exclude_domains,
+        start_published_date,
+        end_published_date,
+        content,
+    )
+
     app_ctx = _get_app_context(ctx)
 
     try:
         # Execute answer query
         data = await app_ctx.exa_client.answer(
-            query=params.query,
+            query=query,
             text=True,  # Always include source text for citations
         )
 
         # Format response
-        if params.response_format == ResponseFormat.JSON:
+        if response_format == "json":
             response = json.dumps(data, indent=2)
         else:
             response = _format_answer_markdown(data)
